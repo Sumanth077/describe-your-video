@@ -1,1 +1,1 @@
-"""Description of your app."""
+"""Package that Transcribes the Audio or a Video"""

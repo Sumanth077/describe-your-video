@@ -1,42 +1,36 @@
-"""Unit tests for the package."""
+"""Test audio-transcription package via integration test."""
+from tests.conftest import PACKAGE_HANDLE, config
+from tests.utils import (
+    TEST_URL,
+    check_analyze_response,
+    check_query_response,
+    prep_workspace
+)
+from typing import Any, Dict
 
-import json
-import random
-import string
-from pathlib import Path
-
-from steamship import Steamship
-
-STEAMSHIP_JSON = Path(__file__).parent.parent / "steamship.json"
-
-
-def package_name():
-    """Return the package name recorded in steamship.json."""
-    with open(STEAMSHIP_JSON, "r") as f:
-        manifest = json.loads(f.read())
-        return manifest.get("handle")
+import pytest
+from steamship import File, PackageInstance, Steamship
 
 
-def random_name() -> str:
-    """Return a random name suitable for a handle that has low likelihood of colliding with another.
+@pytest.fixture()
+def package_instance(steamship_client: Steamship) -> PackageInstance:
+    """Instantiate an instance of the audio-description package."""
+    package_instance = steamship_client.use(package_handle=PACKAGE_HANDLE, instance_handle = "new-instance", config={})
+    assert package_instance is not None
+    assert package_instance.id is not None
+    return package_instance
 
-    Output format matches test_[a-z0-9]+, which should be a valid handle.
-    """
-    letters = string.digits + string.ascii_letters
-    return f"test_{''.join(random.choice(letters) for _ in range(10))}".lower()  # noqa: S311
+
+def test_analyze_youtube(package_instance: PackageInstance) -> None:
+    """Test the analyze_youtube endpoint."""
+    response = package_instance.invoke("analyze_youtube", url=TEST_URL)
+    check_analyze_response(package_instance, response)
 
 
-def test_greeting():
-    """When your package runs in the cloud, you invoke it with Steamship.use."""
-    # Create an instance of this package with a random name.
-    instance = Steamship.use(package_name(), random_name(), config={"default_name": "Beautiful"})
 
-    assert instance.invoke("greet") == "Hello, Beautiful."
-    assert instance.invoke("greet", name="Ted") == "Hello, Ted."
+def test_query(steamship_client: Steamship, package_instance: PackageInstance) -> None:
+    """Test the query endpoint."""
+    prep_workspace(steamship_client)
 
-    instance2 = Steamship.use(
-        package_name(), random_name(), config={"default_name": "World", "enthusiastic": True}
-    )
-
-    assert instance2.invoke("greet") == "Hello, World!"
-    assert instance2.invoke("greet", name="Ted") == "Hello, Ted!"
+    response = package_instance.invoke("query", query='filetag and kind "test_file"')
+    check_query_response(response, File, "test_file", "file123")
