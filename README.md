@@ -13,7 +13,7 @@ from steamship import Steamship
 from steamship.base import TaskState
 
 
-instance = Steamship.use("audio-markdown", "my-workspace-name")
+instance = Steamship.use("audio-description", "my-workspace-name")
 
 url = "<url to mp3 file>"
 transcribe_task = instance.invoke("analyze_youtube", url=url)
