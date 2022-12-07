@@ -1,18 +1,16 @@
 """Package that transcribes the audio and video Files into Text"""
+import json
 from typing import Type
 
-import json
 from pydantic import HttpUrl
-from steamship import Steamship, File, Block, MimeTypes, Tag
-
+from steamship import File, Block, MimeTypes
 from steamship.base import Task, TaskState
-
-from steamship.invocable import Config, Invocable, InvocableResponse, PackageService, create_handler, post
+from steamship.invocable import Config, InvocableResponse, PackageService, create_handler, post
 
 PRIORITY_LABEL = "priority"
 
 
-class AudioDescriptionApp(Invocable):
+class AudioDescriptionApp(PackageService):
     """Package that transcribes the audio and video Files into Text"""
 
     YOUTUBE_FILE_IMPORTER_HANDLE = "youtube-file-importer"
@@ -34,7 +32,10 @@ class AudioDescriptionApp(Invocable):
             plugin_handle=self.YOUTUBE_FILE_IMPORTER_HANDLE
         )
         self.s2t_blockifier = self.client.use_plugin(plugin_handle=self.S2T_BLOCKIFIER_HANDLE)
-        self.generator = self.client.use_plugin(plugin_handle = self.PROMPT_GENERATION_HANDLE, instance_handle = "my-new-instance", config={"temperature":0.7, "max_words": 250, "model":"text-davinci-003"})
+        self.generator = self.client.use_plugin(plugin_handle=self.PROMPT_GENERATION_HANDLE,
+                                                instance_handle="my-new-instance",
+                                                config={"temperature": 0.7, "max_words": 250,
+                                                        "model": "text-davinci-003"})
 
     @post("analyze_youtube")
     def analyze_youtube(self, url: HttpUrl) -> InvocableResponse:
@@ -45,7 +46,6 @@ class AudioDescriptionApp(Invocable):
         file_create_task.wait(max_timeout_s=5 * 60)  # Wait for 5 minutes
         file = file_create_task.output
         return self._get_audio_highlights(file)
-
 
     @post("status")
     def get_status(self, task_id: str):
@@ -62,19 +62,16 @@ class AudioDescriptionApp(Invocable):
                 json={"task_id": task.task_id, "status": task.state, "file": generated_text}
             )
 
-
     @post("query")
     def query(self, query: str) -> InvocableResponse:
         """Query the files in the workspace."""
         return InvocableResponse(json=File.query(self.client, tag_filter_query=query).files)
-
 
     def _get_audio_highlights(self, file) -> InvocableResponse:
         blockify = file.blockify(plugin_instance=self.s2t_blockifier.handle)
         return InvocableResponse(
             json={"task_id": blockify.task_id, "status": blockify.state}
         )
-
 
     @post("generate")
     def _generate(self, audio_summary) -> InvocableResponse:
